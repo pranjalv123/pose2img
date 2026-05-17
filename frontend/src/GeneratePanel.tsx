@@ -3,13 +3,12 @@ import type { SkeletonSceneHandle } from './SkeletonScene'
 
 interface GeneratePanelProps {
   sceneRef: React.RefObject<SkeletonSceneHandle | null>
-  photoSrc: string | null
 }
 
 // Typical cold-start + inference time in seconds (used to animate the bar)
 const EXPECTED_DURATION = 60
 
-export default function GeneratePanel({ sceneRef, photoSrc }: GeneratePanelProps) {
+export default function GeneratePanel({ sceneRef }: GeneratePanelProps) {
   const [prompt, setPrompt] = useState('')
   const [result, setResult] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -53,9 +52,6 @@ export default function GeneratePanel({ sceneRef, photoSrc }: GeneratePanelProps
       const body: Record<string, unknown> = {
         pose_image: poseImage.split(',')[1],
         prompt: prompt.trim(),
-      }
-      if (photoSrc) {
-        body.reference_image = photoSrc.split(',')[1]
       }
 
       const resp = await fetch('/api/render', {

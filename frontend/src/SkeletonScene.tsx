@@ -3,23 +3,18 @@ import { Canvas, useThree } from '@react-three/fiber'
 import { OrbitControls, Sphere, Line } from '@react-three/drei'
 import type { Pose } from './types'
 import { POSE_CONNECTIONS } from './usePoseEstimation'
+import { renderDWPose } from './dwpose'
 
 const JOINT_RADIUS = 0.035
 const JOINT_COLOR = '#ffffff'
 
-// DWPose-style colors per connection group (matches POSE_CONNECTIONS order)
+// Colors for the interactive 3D viewport — purely visual, not sent to the model
 const CONNECTION_COLORS: string[] = [
-  // torso
   '#00ff88', '#00ff88', '#00ff88', '#00ff88',
-  // left arm
   '#00aaff', '#00aaff',
-  // right arm
   '#ff6600', '#ff6600',
-  // left leg
   '#aa44ff', '#aa44ff',
-  // right leg
   '#ffdd00', '#ffdd00',
-  // head
   '#ffffff', '#ffffff',
 ]
 
@@ -50,21 +45,22 @@ function Skeleton({ pose }: { pose: Pose }) {
 }
 
 export interface CaptureResult {
-  poseImage: string  // base64 PNG — DWPose-style render, used directly as ControlNet input
+  poseImage: string  // base64 PNG — DWPose 2D projection at current camera angle
 }
 
 interface CaptureHandleProps {
   captureRef: React.RefObject<{ capture: () => CaptureResult } | null>
+  poses: Pose[]
 }
 
-function CaptureHandle({ captureRef }: CaptureHandleProps) {
-  const { gl } = useThree()
+function CaptureHandle({ captureRef, poses }: CaptureHandleProps) {
+  const { camera } = useThree()
 
   useImperativeHandle(captureRef, () => ({
     capture(): CaptureResult {
-      return { poseImage: gl.domElement.toDataURL('image/png') }
+      return { poseImage: renderDWPose(poses.map(p => p.landmarks), camera) }
     },
-  }))
+  }), [camera, poses])
 
   return null
 }
@@ -89,13 +85,12 @@ const SkeletonScene = forwardRef<SkeletonSceneHandle, SkeletonSceneProps>(
       <Canvas
         camera={{ position: [0, 0, 3], fov: 50 }}
         style={{ background: '#000000' }}
-        gl={{ preserveDrawingBuffer: true }}
       >
         <OrbitControls makeDefault />
         {poses.map((pose, i) => (
           <Skeleton key={i} pose={pose} />
         ))}
-        <CaptureHandle captureRef={captureRef} />
+        <CaptureHandle captureRef={captureRef} poses={poses} />
       </Canvas>
     )
   }

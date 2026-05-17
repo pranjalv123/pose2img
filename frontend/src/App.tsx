@@ -80,7 +80,7 @@ export default function App() {
             </div>
 
             {/* Right: generate */}
-            <GeneratePanel sceneRef={sceneRef} photoSrc={photoSrc} />
+            <GeneratePanel sceneRef={sceneRef} />
           </div>
         )}
       </div>
