@@ -42,6 +42,7 @@ image = (
         "pillow",
         "huggingface-hub",
         "pydantic>=2.0",
+        "fastapi[standard]",
     )
     .run_function(
         _download_models,
