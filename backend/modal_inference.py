@@ -114,14 +114,14 @@ class PoseToImage:
             controlnet=controlnet,
             torch_dtype=torch.bfloat16,
         )
-        self.pipe.enable_model_cpu_offload()
-
         print("Loading IP-Adapter...")
         self.pipe.load_ip_adapter(
             f"{MODELS_DIR}/ip-adapter",
             weight_name="ip_adapter.safetensors",
             image_encoder_pretrained_model_name_or_path=f"{MODELS_DIR}/clip",
         )
+        # Must call after load_ip_adapter so the CLIP image encoder also gets offload hooks
+        self.pipe.enable_model_cpu_offload()
         print("Pipeline ready.")
 
     @modal.fastapi_endpoint(method="POST")
@@ -148,6 +148,7 @@ class PoseToImage:
         result = self.pipe(
             req.prompt,
             control_image=pose_img,
+            control_mode=4,  # 0=canny 1=tile 2=depth 3=blur 4=pose 5=gray 6=low-quality
             width=req.width,
             height=req.height,
             controlnet_conditioning_scale=req.pose_strength,
