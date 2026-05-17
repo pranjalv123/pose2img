@@ -670,6 +670,7 @@ dependencies = [
     { name = "httpx" },
     { name = "modal" },
     { name = "pillow" },
+    { name = "python-dotenv" },
     { name = "python-multipart" },
     { name = "uvicorn", extra = ["standard"] },
 ]
@@ -680,6 +681,7 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "modal", specifier = ">=1.4.2" },
     { name = "pillow", specifier = "==12.2.0" },
+    { name = "python-dotenv", specifier = ">=1.2.2" },
     { name = "python-multipart", specifier = "==0.0.29" },
     { name = "uvicorn", extras = ["standard"], specifier = "==0.47.0" },
 ]

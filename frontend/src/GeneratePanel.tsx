@@ -3,9 +3,10 @@ import type { SkeletonSceneHandle } from './SkeletonScene'
 
 interface GeneratePanelProps {
   sceneRef: React.RefObject<SkeletonSceneHandle | null>
+  photoSrc: string | null
 }
 
-export default function GeneratePanel({ sceneRef }: GeneratePanelProps) {
+export default function GeneratePanel({ sceneRef, photoSrc }: GeneratePanelProps) {
   const [prompt, setPrompt] = useState('')
   const [result, setResult] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -19,14 +20,19 @@ export default function GeneratePanel({ sceneRef }: GeneratePanelProps) {
     try {
       const { poseImage, depthMap } = sceneRef.current.capture()
 
+      const body: Record<string, unknown> = {
+        depth_map: depthMap.split(',')[1],
+        pose_image: poseImage.split(',')[1],
+        prompt: prompt.trim(),
+      }
+      if (photoSrc) {
+        body.reference_image = photoSrc.split(',')[1]
+      }
+
       const resp = await fetch('/api/render', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          depth_map: depthMap.split(',')[1],
-          pose_image: poseImage.split(',')[1],
-          prompt: prompt.trim(),
-        }),
+        body: JSON.stringify(body),
       })
 
       if (!resp.ok) {

@@ -6,6 +6,8 @@ from pydantic import BaseModel
 MODELS_DIR = "/models"
 FLUX_REPO = "black-forest-labs/FLUX.1-dev"
 CONTROLNET_REPO = "Shakker-Labs/FLUX.1-dev-ControlNet-Union-Pro-2.0"
+IP_ADAPTER_REPO = "XLabs-AI/flux-ip-adapter"
+CLIP_REPO = "openai/clip-vit-large-patch14"
 
 hf_secret = modal.Secret.from_name("huggingface-secret")
 volume = modal.Volume.from_name("pose2img-models", create_if_missing=True)
@@ -24,10 +26,14 @@ def _download_models():
         ignore_patterns=["*.bin"],
     )
     print(f"Downloading {CONTROLNET_REPO}...")
-    snapshot_download(
-        CONTROLNET_REPO,
-        local_dir=f"{MODELS_DIR}/controlnet",
-    )
+    snapshot_download(CONTROLNET_REPO, local_dir=f"{MODELS_DIR}/controlnet")
+
+    print(f"Downloading {IP_ADAPTER_REPO}...")
+    snapshot_download(IP_ADAPTER_REPO, local_dir=f"{MODELS_DIR}/ip-adapter")
+
+    print(f"Downloading {CLIP_REPO}...")
+    snapshot_download(CLIP_REPO, local_dir=f"{MODELS_DIR}/clip")
+
     print("Done.")
 
 
@@ -57,12 +63,14 @@ app = modal.App("pose2img", image=image)
 class GenerateRequest(BaseModel):
     depth_map: str
     pose_image: str | None = None
+    reference_image: str | None = None  # base64 PNG — original photo for IP-Adapter
     prompt: str
     width: int = 1024
     height: int = 1024
     num_steps: int = 28
     guidance_scale: float = 3.5
     depth_strength: float = 0.8
+    ip_adapter_scale: float = 0.6
     seed: int | None = None
 
 
@@ -93,6 +101,12 @@ class PoseToImage:
             controlnet=controlnet,
             torch_dtype=torch.bfloat16,
         )
+        print("Loading IP-Adapter...")
+        self.pipe.load_ip_adapter(
+            f"{MODELS_DIR}/ip-adapter",
+            weight_name="ip_adapter.safetensors",
+            image_encoder_pretrained_model_name_or_path=f"{MODELS_DIR}/clip",
+        )
         self.pipe.enable_model_cpu_offload()
         print("Pipeline ready.")
 
@@ -110,30 +124,33 @@ class PoseToImage:
         if req.seed is not None:
             generator = torch.Generator(device="cuda").manual_seed(req.seed)
 
+        shared_kwargs = dict(
+            width=req.width,
+            height=req.height,
+            num_inference_steps=req.num_steps,
+            guidance_scale=req.guidance_scale,
+            generator=generator,
+            **({"ip_adapter_image": b64_to_image(req.reference_image)} if req.reference_image else {}),
+        )
+        if req.reference_image:
+            self.pipe.set_ip_adapter_scale(req.ip_adapter_scale)
+
         if req.pose_image:
             pose_img = b64_to_image(req.pose_image).resize((req.width, req.height))
             result = self.pipe(
                 req.prompt,
                 control_image=[depth_img, pose_img],
-                width=req.width,
-                height=req.height,
                 controlnet_conditioning_scale=[req.depth_strength, 0.9],
                 control_guidance_end=[0.8, 0.65],
-                num_inference_steps=req.num_steps,
-                guidance_scale=req.guidance_scale,
-                generator=generator,
+                **shared_kwargs,
             ).images[0]
         else:
             result = self.pipe(
                 req.prompt,
                 control_image=depth_img,
-                width=req.width,
-                height=req.height,
                 controlnet_conditioning_scale=req.depth_strength,
                 control_guidance_end=0.8,
-                num_inference_steps=req.num_steps,
-                guidance_scale=req.guidance_scale,
-                generator=generator,
+                **shared_kwargs,
             ).images[0]
 
         buf = io.BytesIO()
