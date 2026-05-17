@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import type { SkeletonSceneHandle } from './SkeletonScene'
 
 interface GeneratePanelProps {
@@ -6,15 +6,45 @@ interface GeneratePanelProps {
   photoSrc: string | null
 }
 
+// Typical cold-start + inference time in seconds (used to animate the bar)
+const EXPECTED_DURATION = 60
+
 export default function GeneratePanel({ sceneRef, photoSrc }: GeneratePanelProps) {
   const [prompt, setPrompt] = useState('')
   const [result, setResult] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [progress, setProgress] = useState(0)
+  const [elapsed, setElapsed] = useState(0)
+  const startTimeRef = useRef<number | null>(null)
+  const rafRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    if (!loading) {
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
+      startTimeRef.current = null
+      return
+    }
+
+    startTimeRef.current = performance.now()
+
+    const tick = () => {
+      const secs = (performance.now() - startTimeRef.current!) / 1000
+      setElapsed(Math.round(secs))
+      // Ease toward 95% asymptotically so bar never reaches 100 until done
+      setProgress(95 * (1 - Math.exp(-secs / EXPECTED_DURATION)))
+      rafRef.current = requestAnimationFrame(tick)
+    }
+    rafRef.current = requestAnimationFrame(tick)
+
+    return () => { if (rafRef.current !== null) cancelAnimationFrame(rafRef.current) }
+  }, [loading])
 
   const generate = useCallback(async () => {
     if (!sceneRef.current || !prompt.trim()) return
     setLoading(true)
+    setProgress(0)
+    setElapsed(0)
     setError(null)
 
     try {
@@ -40,6 +70,7 @@ export default function GeneratePanel({ sceneRef, photoSrc }: GeneratePanelProps
       }
 
       const data = await resp.json()
+      setProgress(100)
       setResult(`data:image/png;base64,${data.image}`)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Unknown error')
@@ -70,6 +101,18 @@ export default function GeneratePanel({ sceneRef, photoSrc }: GeneratePanelProps
         >
           {loading ? 'Generating…' : 'Generate'}
         </button>
+
+        {loading && (
+          <div className="flex flex-col gap-1.5">
+            <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-blue-500 rounded-full transition-none"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+            <p className="text-slate-500 text-xs">{elapsed}s elapsed</p>
+          </div>
+        )}
 
         {error && (
           <p className="text-red-400 text-xs">{error}</p>
