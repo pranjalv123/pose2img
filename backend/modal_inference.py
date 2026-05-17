@@ -40,10 +40,10 @@ def _download_models():
 image = (
     modal.Image.debian_slim(python_version="3.11")
     .pip_install(
-        "torch==2.4.0",
+        "torch==2.5.1",
         "diffusers>=0.32.0",
         "transformers>=4.44.0",
-        "accelerate>=0.33.0",
+        "accelerate>=1.0.0",
         "sentencepiece",
         "pillow",
         "huggingface-hub",
