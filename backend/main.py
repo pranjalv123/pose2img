@@ -20,16 +20,14 @@ MODAL_ENDPOINT = os.environ.get("MODAL_ENDPOINT", "")
 
 
 class RenderRequest(BaseModel):
-    depth_map: str
-    pose_image: str | None = None
+    pose_image: str
     reference_image: str | None = None
     prompt: str
     width: int = 1024
     height: int = 1024
     num_steps: int = 28
     guidance_scale: float = 3.5
-    depth_strength: float = 0.8
-    ip_adapter_scale: float = 0.6
+    pose_strength: float = 0.9
     seed: int | None = None
 
 

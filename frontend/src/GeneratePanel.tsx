@@ -18,10 +18,9 @@ export default function GeneratePanel({ sceneRef, photoSrc }: GeneratePanelProps
     setError(null)
 
     try {
-      const { poseImage, depthMap } = sceneRef.current.capture()
+      const { poseImage } = sceneRef.current.capture()
 
       const body: Record<string, unknown> = {
-        depth_map: depthMap.split(',')[1],
         pose_image: poseImage.split(',')[1],
         prompt: prompt.trim(),
       }
@@ -50,8 +49,8 @@ export default function GeneratePanel({ sceneRef, photoSrc }: GeneratePanelProps
   }, [sceneRef, prompt])
 
   return (
-    <div className="w-72 shrink-0 border-l border-slate-800 flex flex-col">
-      <div className="p-3 border-b border-slate-800 text-xs text-slate-500 uppercase tracking-wider">
+    <div className="w-72 shrink-0 border-l border-slate-800 flex flex-col overflow-y-auto">
+      <div className="p-3 border-b border-slate-800 text-xs text-slate-500 uppercase tracking-wider sticky top-0 bg-[#0f0f0f] z-10">
         Generate
       </div>
 
@@ -78,11 +77,11 @@ export default function GeneratePanel({ sceneRef, photoSrc }: GeneratePanelProps
       </div>
 
       {result && (
-        <div className="flex-1 overflow-hidden flex flex-col">
-          <div className="p-3 border-t border-slate-800 text-xs text-slate-500 uppercase tracking-wider">
+        <div className="flex flex-col border-t border-slate-800">
+          <div className="p-3 text-xs text-slate-500 uppercase tracking-wider">
             Result
           </div>
-          <img src={result} className="w-full object-contain" alt="generated" />
+          <img src={result} className="w-full" alt="generated" />
           <div className="p-3">
             <a
               href={result}

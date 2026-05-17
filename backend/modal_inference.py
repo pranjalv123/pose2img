@@ -61,16 +61,14 @@ app = modal.App("pose2img", image=image)
 
 
 class GenerateRequest(BaseModel):
-    depth_map: str
-    pose_image: str | None = None
-    reference_image: str | None = None  # base64 PNG — original photo for IP-Adapter
+    pose_image: str           # base64 PNG — DWPose-style skeleton render
+    reference_image: str | None = None
     prompt: str
     width: int = 1024
     height: int = 1024
     num_steps: int = 28
     guidance_scale: float = 3.5
-    depth_strength: float = 0.8
-    ip_adapter_scale: float = 0.6
+    pose_strength: float = 0.9
     seed: int | None = None
 
 
@@ -114,28 +112,22 @@ class PoseToImage:
         def b64_to_image(b64: str) -> Image.Image:
             return Image.open(io.BytesIO(base64.b64decode(b64))).convert("RGB")
 
-        depth_img = b64_to_image(req.depth_map).resize((req.width, req.height))
+        pose_img = b64_to_image(req.pose_image).resize((req.width, req.height))
 
         generator = None
         if req.seed is not None:
             generator = torch.Generator(device="cuda").manual_seed(req.seed)
 
-        shared_kwargs = dict(
+        result = self.pipe(
+            req.prompt,
+            control_image=pose_img,
             width=req.width,
             height=req.height,
+            controlnet_conditioning_scale=req.pose_strength,
+            control_guidance_end=0.65,
             num_inference_steps=req.num_steps,
             guidance_scale=req.guidance_scale,
             generator=generator,
-        )
-
-        # FluxControlNetPipeline has a known bug with list control_image inputs
-        # (batch size not accounted for in _pack_latents). Use single depth image for now.
-        result = self.pipe(
-            req.prompt,
-            control_image=depth_img,
-            controlnet_conditioning_scale=req.depth_strength,
-            control_guidance_end=0.8,
-            **shared_kwargs,
         ).images[0]
 
         buf = io.BytesIO()
