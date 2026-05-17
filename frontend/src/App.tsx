@@ -1,6 +1,7 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import PhotoUpload from './PhotoUpload'
-import SkeletonScene from './SkeletonScene'
+import SkeletonScene, { type SkeletonSceneHandle } from './SkeletonScene'
+import GeneratePanel from './GeneratePanel'
 import { usePoseEstimation } from './usePoseEstimation'
 import type { Pose } from './types'
 
@@ -11,15 +12,13 @@ export default function App() {
   const [photoSrc, setPhotoSrc] = useState<string | null>(null)
   const [poses, setPoses] = useState<Pose[]>([])
   const { estimatePoses, loading, error } = usePoseEstimation()
+  const sceneRef = useRef<SkeletonSceneHandle>(null)
 
   const handleImage = useCallback(async (img: HTMLImageElement, src: string) => {
     setPhotoSrc(src)
     const detected = await estimatePoses(img)
     setPoses(detected)
-    if (detected.length > 0) {
-      setStage('scene')
-    }
-    // stay on upload stage if 0 detections — error or "no poses" will show
+    if (detected.length > 0) setStage('scene')
   }, [estimatePoses])
 
   const reset = () => {
@@ -30,21 +29,16 @@ export default function App() {
 
   return (
     <div className="flex flex-col h-screen bg-[#0f0f0f] text-slate-200">
-      {/* Header */}
       <header className="flex items-center gap-3 px-6 py-3 border-b border-slate-800 shrink-0">
         <h1 className="text-lg font-semibold tracking-tight">pose2img</h1>
         <span className="text-slate-600 text-sm">pose reference → generated image</span>
         {stage === 'scene' && (
-          <button
-            onClick={reset}
-            className="ml-auto text-sm text-slate-400 hover:text-slate-200 transition-colors"
-          >
+          <button onClick={reset} className="ml-auto text-sm text-slate-400 hover:text-slate-200 transition-colors">
             ← new photo
           </button>
         )}
       </header>
 
-      {/* Main */}
       <div className="flex flex-1 overflow-hidden">
         {stage === 'upload' && (
           <div className="flex-1 p-8">
@@ -56,9 +50,7 @@ export default function App() {
             ) : (
               <PhotoUpload onImage={handleImage} />
             )}
-            {error && (
-              <p className="mt-3 text-red-400 text-sm text-center">{error}</p>
-            )}
+            {error && <p className="mt-3 text-red-400 text-sm text-center">{error}</p>}
             {!loading && !error && photoSrc && poses.length === 0 && (
               <p className="mt-3 text-yellow-500 text-sm text-center">No poses detected — try a photo with a clearly visible person</p>
             )}
@@ -69,20 +61,10 @@ export default function App() {
           <div className="flex flex-1 overflow-hidden">
             {/* Left: reference photo */}
             <div className="w-72 shrink-0 border-r border-slate-800 flex flex-col">
-              <div className="p-3 border-b border-slate-800 text-xs text-slate-500 uppercase tracking-wider">
-                Reference photo
-              </div>
-              {photoSrc && (
-                <img
-                  src={photoSrc}
-                  className="w-full object-contain"
-                  alt="reference"
-                />
-              )}
+              <div className="p-3 border-b border-slate-800 text-xs text-slate-500 uppercase tracking-wider">Reference photo</div>
+              {photoSrc && <img src={photoSrc} className="w-full object-contain" alt="reference" />}
               <div className="p-3 border-t border-slate-800 mt-auto">
-                <p className="text-xs text-slate-500">
-                  {poses.length} pose{poses.length !== 1 ? 's' : ''} detected
-                </p>
+                <p className="text-xs text-slate-500">{poses.length} pose{poses.length !== 1 ? 's' : ''} detected</p>
               </div>
             </div>
 
@@ -93,21 +75,12 @@ export default function App() {
                 <span className="text-slate-600 normal-case">drag to orbit · scroll to zoom</span>
               </div>
               <div className="flex-1">
-                <SkeletonScene poses={poses} />
+                <SkeletonScene ref={sceneRef} poses={poses} />
               </div>
             </div>
 
-            {/* Right: generation panel (placeholder) */}
-            <div className="w-72 shrink-0 border-l border-slate-800 flex flex-col">
-              <div className="p-3 border-b border-slate-800 text-xs text-slate-500 uppercase tracking-wider">
-                Generate
-              </div>
-              <div className="flex-1 flex items-center justify-center p-6">
-                <p className="text-slate-600 text-sm text-center">
-                  Generation panel coming soon
-                </p>
-              </div>
-            </div>
+            {/* Right: generate */}
+            <GeneratePanel sceneRef={sceneRef} />
           </div>
         )}
       </div>
