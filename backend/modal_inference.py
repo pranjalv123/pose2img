@@ -63,6 +63,7 @@ app = modal.App("pose2img", image=image)
 class GenerateRequest(BaseModel):
     pose_image: str           # base64 PNG — DWPose-style skeleton render
     reference_image: str | None = None
+    ip_adapter_scale: float = 0.6
     prompt: str
     width: int = 1024
     height: int = 1024
@@ -88,20 +89,39 @@ class PoseToImage:
         import torch
         from diffusers import FluxControlNetModel, FluxControlNetPipeline
 
+        class FixedFluxControlNetPipeline(FluxControlNetPipeline):
+            """
+            Fixes _pack_latents to use the actual batch size from the latent tensor
+            rather than the `batch_size` argument, which is wrong when IP-Adapter
+            doubles the batch internally for classifier-free guidance.
+            """
+            @staticmethod
+            def _pack_latents(latents, batch_size, num_channels_latents, height, width):
+                batch_size = latents.shape[0]
+                latents = latents.view(batch_size, num_channels_latents, height // 2, 2, width // 2, 2)
+                latents = latents.permute(0, 2, 4, 1, 3, 5)
+                latents = latents.reshape(batch_size, (height // 2) * (width // 2), num_channels_latents * 4)
+                return latents
+
         print("Loading ControlNet...")
         controlnet = FluxControlNetModel.from_pretrained(
             f"{MODELS_DIR}/controlnet",
             torch_dtype=torch.bfloat16,
         )
         print("Loading Flux pipeline...")
-        self.pipe = FluxControlNetPipeline.from_pretrained(
+        self.pipe = FixedFluxControlNetPipeline.from_pretrained(
             f"{MODELS_DIR}/flux-dev",
             controlnet=controlnet,
             torch_dtype=torch.bfloat16,
         )
         self.pipe.enable_model_cpu_offload()
-        # IP-Adapter + FluxControlNetPipeline is not yet supported in diffusers
-        # (batch doubling in _pack_latents). Will add when fixed upstream.
+
+        print("Loading IP-Adapter...")
+        self.pipe.load_ip_adapter(
+            f"{MODELS_DIR}/ip-adapter",
+            weight_name="ip_adapter.safetensors",
+            image_encoder_pretrained_model_name_or_path=f"{MODELS_DIR}/clip",
+        )
         print("Pipeline ready.")
 
     @modal.fastapi_endpoint(method="POST")
@@ -118,6 +138,13 @@ class PoseToImage:
         if req.seed is not None:
             generator = torch.Generator(device="cuda").manual_seed(req.seed)
 
+        ip_kwargs: dict = {}
+        if req.reference_image:
+            self.pipe.set_ip_adapter_scale(req.ip_adapter_scale)
+            ip_kwargs["ip_adapter_image"] = b64_to_image(req.reference_image)
+        else:
+            self.pipe.set_ip_adapter_scale(0.0)
+
         result = self.pipe(
             req.prompt,
             control_image=pose_img,
@@ -128,6 +155,7 @@ class PoseToImage:
             num_inference_steps=req.num_steps,
             guidance_scale=req.guidance_scale,
             generator=generator,
+            **ip_kwargs,
         ).images[0]
 
         buf = io.BytesIO()

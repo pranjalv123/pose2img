@@ -22,6 +22,7 @@ MODAL_ENDPOINT = os.environ.get("MODAL_ENDPOINT", "")
 class RenderRequest(BaseModel):
     pose_image: str
     reference_image: str | None = None
+    ip_adapter_scale: float = 0.6
     prompt: str
     width: int = 1024
     height: int = 1024
