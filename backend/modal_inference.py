@@ -101,13 +101,9 @@ class PoseToImage:
             controlnet=controlnet,
             torch_dtype=torch.bfloat16,
         )
-        print("Loading IP-Adapter...")
-        self.pipe.load_ip_adapter(
-            f"{MODELS_DIR}/ip-adapter",
-            weight_name="ip_adapter.safetensors",
-            image_encoder_pretrained_model_name_or_path=f"{MODELS_DIR}/clip",
-        )
         self.pipe.enable_model_cpu_offload()
+        # IP-Adapter + FluxControlNetPipeline is not yet supported in diffusers
+        # (batch doubling in _pack_latents). Will add when fixed upstream.
         print("Pipeline ready.")
 
     @modal.fastapi_endpoint(method="POST")
@@ -130,10 +126,7 @@ class PoseToImage:
             num_inference_steps=req.num_steps,
             guidance_scale=req.guidance_scale,
             generator=generator,
-            **({"ip_adapter_image": b64_to_image(req.reference_image)} if req.reference_image else {}),
         )
-        if req.reference_image:
-            self.pipe.set_ip_adapter_scale(req.ip_adapter_scale)
 
         if req.pose_image:
             pose_img = b64_to_image(req.pose_image).resize((req.width, req.height))
