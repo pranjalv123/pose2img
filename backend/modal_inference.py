@@ -128,23 +128,15 @@ class PoseToImage:
             generator=generator,
         )
 
-        if req.pose_image:
-            pose_img = b64_to_image(req.pose_image).resize((req.width, req.height))
-            result = self.pipe(
-                req.prompt,
-                control_image=[depth_img, pose_img],
-                controlnet_conditioning_scale=[req.depth_strength, 0.9],
-                control_guidance_end=[0.8, 0.65],
-                **shared_kwargs,
-            ).images[0]
-        else:
-            result = self.pipe(
-                req.prompt,
-                control_image=depth_img,
-                controlnet_conditioning_scale=req.depth_strength,
-                control_guidance_end=0.8,
-                **shared_kwargs,
-            ).images[0]
+        # FluxControlNetPipeline has a known bug with list control_image inputs
+        # (batch size not accounted for in _pack_latents). Use single depth image for now.
+        result = self.pipe(
+            req.prompt,
+            control_image=depth_img,
+            controlnet_conditioning_scale=req.depth_strength,
+            control_guidance_end=0.8,
+            **shared_kwargs,
+        ).images[0]
 
         buf = io.BytesIO()
         result.save(buf, format="PNG")
